@@ -1,0 +1,21 @@
+# dependencies
+node_modules/
+
+# secrets — only .env.example belongs in git
+.env
+.env.local
+
+# build output
+dist/
+build/
+
+# test + tooling noise
+coverage/
+*.log
+npm-debug.log*
+
+# editors / os
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
