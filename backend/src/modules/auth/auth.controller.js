@@ -11,4 +11,9 @@ const login = asyncHandler(async (req, res) => {
   res.status(200).json({ user, token });
 });
 
-module.exports = { register, login };
+// authenticate already loaded the user, so there is nothing left to look up.
+const me = (req, res) => {
+  res.status(200).json({ user: req.user });
+};
+
+module.exports = { register, login, me };
