@@ -4,6 +4,7 @@ const cors = require('cors');
 const env = require('./config/env');
 const authRoutes = require('./modules/auth/auth.routes');
 const userRoutes = require('./modules/users/user.routes');
+const projectRoutes = require('./modules/projects/project.routes');
 const notFound = require('./middleware/notFound');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -20,6 +21,7 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/projects', projectRoutes);
 
 // Order matters: unmatched route first, then the single place errors are rendered.
 app.use(notFound);
