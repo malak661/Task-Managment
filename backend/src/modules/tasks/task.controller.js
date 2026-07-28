@@ -7,8 +7,8 @@ const create = asyncHandler(async (req, res) => {
 });
 
 const list = asyncHandler(async (req, res) => {
-  const tasks = await taskService.listTasks(req.params.projectId, req.user);
-  res.status(200).json({ tasks });
+  const { tasks, meta } = await taskService.listTasks(req.params.projectId, req.query, req.user);
+  res.status(200).json({ tasks, meta });
 });
 
 const getOne = asyncHandler(async (req, res) => {

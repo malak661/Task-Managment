@@ -11,7 +11,7 @@ const router = Router({ mergeParams: true });
 router
   .route('/')
   .all(validate(taskValidation.projectScope, 'params'))
-  .get(taskController.list)
+  .get(validate(taskValidation.listTasks, 'query'), taskController.list)
   .post(validate(taskValidation.createTask), taskController.create);
 
 router
