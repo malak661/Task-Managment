@@ -2,6 +2,7 @@ const { Router } = require('express');
 
 const authenticate = require('../../middleware/authenticate');
 const validate = require('../../middleware/validate');
+const taskRoutes = require('../tasks/task.routes');
 const projectController = require('./project.controller');
 const projectValidation = require('./project.validation');
 
@@ -9,6 +10,9 @@ const router = Router();
 
 // There is no such thing as a public project here.
 router.use(authenticate);
+
+// Tasks only exist inside a project, so the url says so.
+router.use('/:projectId/tasks', taskRoutes);
 
 router
   .route('/')
