@@ -5,6 +5,7 @@ const {
   TASK_STATUS_VALUES,
   TASK_PRIORITIES,
   TASK_PRIORITY_VALUES,
+  PRIORITY_WEIGHTS,
 } = require('../constants');
 
 const taskSchema = new mongoose.Schema(
@@ -36,6 +37,13 @@ const taskSchema = new mongoose.Schema(
       enum: TASK_PRIORITY_VALUES,
       default: TASK_PRIORITIES.MEDIUM,
     },
+    // Kept in step with priority by the hook below, purely so "sort by priority"
+    // can mean low → medium → high instead of alphabetical order.
+    priorityWeight: {
+      type: Number,
+      default: PRIORITY_WEIGHTS[TASK_PRIORITIES.MEDIUM],
+      select: false,
+    },
     dueDate: {
       type: Date,
       default: null,
@@ -54,6 +62,14 @@ const taskSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+taskSchema.pre('save', function syncPriorityWeight(next) {
+  if (this.isModified('priority')) {
+    this.priorityWeight = PRIORITY_WEIGHTS[this.priority];
+  }
+
+  return next();
+});
 
 // Tasks are always read one project at a time, usually narrowed by status.
 taskSchema.index({ project: 1, status: 1 });
