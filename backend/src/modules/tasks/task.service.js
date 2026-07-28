@@ -1,9 +1,19 @@
 const { ROLES } = require('../../constants');
 const Task = require('../../models/task.model');
 const ApiError = require('../../utils/ApiError');
+const escapeRegex = require('../../utils/escapeRegex');
 const projectService = require('../projects/project.service');
 
 const PEOPLE_FIELDS = 'name email role';
+
+// Sort keys the api accepts, mapped to the field actually stored. "priority" is
+// the interesting one: it sorts on the numeric weight, not the label.
+const SORTABLE_FIELDS = {
+  createdAt: 'createdAt',
+  dueDate: 'dueDate',
+  title: 'title',
+  priority: 'priorityWeight',
+};
 
 const idOf = (value) => String(value && value._id ? value._id : value);
 
@@ -50,10 +60,60 @@ async function createTask(projectId, payload, user) {
   return withPeople(Task.findById(task._id));
 }
 
-async function listTasks(projectId, user) {
+function buildFilter(projectId, { status, priority, assignee, search }) {
+  const filter = { project: projectId };
+
+  if (status) {
+    filter.status = status;
+  }
+
+  if (priority) {
+    filter.priority = priority;
+  }
+
+  if (assignee) {
+    filter.assignee = assignee === 'unassigned' ? null : assignee;
+  }
+
+  if (search) {
+    filter.title = { $regex: escapeRegex(search), $options: 'i' };
+  }
+
+  return filter;
+}
+
+function buildSort(sort) {
+  const descending = sort.startsWith('-');
+  const field = SORTABLE_FIELDS[descending ? sort.slice(1) : sort];
+
+  // The _id tiebreaker keeps paging stable when the sort field has duplicates,
+  // otherwise the same task can show up on two pages.
+  return { [field]: descending ? -1 : 1, _id: -1 };
+}
+
+async function listTasks(projectId, query, user) {
   const project = await projectService.getAccessibleProject(projectId, user);
 
-  return withPeople(Task.find({ project: project._id })).sort('-createdAt');
+  const { page, limit, sort } = query;
+  const filter = buildFilter(project._id, query);
+
+  const [tasks, total] = await Promise.all([
+    withPeople(Task.find(filter))
+      .sort(buildSort(sort))
+      .skip((page - 1) * limit)
+      .limit(limit),
+    Task.countDocuments(filter),
+  ]);
+
+  return {
+    tasks,
+    meta: {
+      total,
+      page,
+      limit,
+      pages: Math.ceil(total / limit) || 1,
+    },
+  };
 }
 
 async function getTask(projectId, taskId, user) {
