@@ -10,10 +10,13 @@ const env = {
   port: Number(process.env.PORT) || 4000,
   mongoUri: process.env.MONGODB_URI,
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  jwtSecret: process.env.JWT_SECRET,
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
 };
 
 const required = {
   MONGODB_URI: env.mongoUri,
+  JWT_SECRET: env.jwtSecret,
 };
 
 const missing = Object.keys(required).filter((key) => !required[key]);
