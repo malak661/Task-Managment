@@ -1,5 +1,6 @@
 const { ROLES } = require('../../constants');
 const Project = require('../../models/project.model');
+const Task = require('../../models/task.model');
 const User = require('../../models/user.model');
 const ApiError = require('../../utils/ApiError');
 
@@ -81,6 +82,9 @@ async function updateProject(projectId, updates, user) {
 async function deleteProject(projectId, user) {
   const project = await getManageableProject(projectId, user);
 
+  // Tasks have no meaning without their project, so they go with it rather than
+  // being left behind pointing at nothing.
+  await Task.deleteMany({ project: project._id });
   await project.deleteOne();
 }
 
@@ -115,6 +119,9 @@ async function removeMember(projectId, userId, actingUser) {
 
   project.members = project.members.filter((member) => idOf(member) !== String(userId));
   await project.save();
+
+  // Someone who is off the project should not still be holding its tasks.
+  await Task.updateMany({ project: project._id, assignee: userId }, { assignee: null });
 
   return project.populate('owner members', MEMBER_FIELDS);
 }
