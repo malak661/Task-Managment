@@ -1,7 +1,9 @@
 const express = require('express');
 const cors = require('cors');
+const swaggerUi = require('swagger-ui-express');
 
 const env = require('./config/env');
+const swaggerSpec = require('./config/swagger');
 const authRoutes = require('./modules/auth/auth.routes');
 const userRoutes = require('./modules/users/user.routes');
 const projectRoutes = require('./modules/projects/project.routes');
@@ -18,6 +20,10 @@ app.use(express.json());
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', environment: env.nodeEnv, uptime: process.uptime() });
 });
+
+// Browsable docs, plus the raw spec for anything that wants to import it.
+app.get('/api/docs.json', (req, res) => res.json(swaggerSpec));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'Task Board API' }));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
