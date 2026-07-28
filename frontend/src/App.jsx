@@ -2,9 +2,10 @@ import { Route, Routes } from 'react-router-dom';
 
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
-import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import NotFoundPage from './pages/NotFoundPage';
+import ProjectBoardPage from './pages/ProjectBoardPage';
+import ProjectsPage from './pages/ProjectsPage';
 import RegisterPage from './pages/RegisterPage';
 
 function App() {
@@ -16,7 +17,8 @@ function App() {
       {/* Everything below needs a session, and shares the header. */}
       <Route element={<ProtectedRoute />}>
         <Route element={<Layout />}>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<ProjectsPage />} />
+          <Route path="/projects/:projectId" element={<ProjectBoardPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
