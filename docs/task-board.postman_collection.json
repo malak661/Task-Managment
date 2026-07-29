@@ -1,0 +1,604 @@
+{
+  "info": {
+    "name": "Task Board API",
+    "description": "Every endpoint in the Task Board API.\n\n**How to use it**\n\n1. Start the API (`cd backend && npm run dev`) and seed it (`npm run seed`).\n2. Run **Auth → Login as admin**. A script stores the token on the collection, so every other request is authorised from then on.\n3. Run **Projects → Create project** and **Tasks → Create task** — they store `projectId` and `taskId` the same way, so the rest of the requests work without pasting ids around.\n\nThe collection uses bearer auth at the top level; the two public endpoints override it with \"No auth\".\n\nSeeded accounts: `admin@taskboard.dev` / `Admin1234`, `member@taskboard.dev` / `Member1234`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api" },
+    { "key": "token", "value": "" },
+    { "key": "memberToken", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "memberId", "value": "" },
+    { "key": "projectId", "value": "" },
+    { "key": "taskId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 with a token', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(pm.response.json().token).to.be.a('string');",
+                  "});",
+                  "",
+                  "pm.test('new accounts are members, even if the body says otherwise', () => {",
+                  "  pm.expect(pm.response.json().user.role).to.eql('member');",
+                  "});",
+                  "",
+                  "pm.test('the password never comes back', () => {",
+                  "  pm.expect(pm.response.json().user).to.not.have.property('password');",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('token', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nadia Kamal\",\n  \"email\": \"nadia-{{$timestamp}}@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Public. Always creates a member — a `role` in the body is stripped, so nobody can sign themselves up as an admin.\n\nThe email carries `{{$timestamp}}` so the request can be run more than once without colliding with the unique index (which would answer 409)."
+          }
+        },
+        {
+          "name": "Login as admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with a token', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().token).to.be.a('string');",
+                  "});",
+                  "",
+                  "// Everything else in the collection reads these.",
+                  "pm.collectionVariables.set('token', pm.response.json().token);",
+                  "pm.collectionVariables.set('userId', pm.response.json().user._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@taskboard.dev\",\n  \"password\": \"Admin1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Public. Run this first — the test script stores the token for the whole collection."
+          }
+        },
+        {
+          "name": "Login as member",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with a token', () => pm.response.to.have.status(200));",
+                  "",
+                  "// Deliberately not `token`: this must not hijack the admin session that",
+                  "// the rest of the collection runs on.",
+                  "pm.collectionVariables.set('memberToken', pm.response.json().token);",
+                  "",
+                  "// The member requests act on this same account, so the permission checks",
+                  "// show a project member being refused rather than a stranger.",
+                  "pm.collectionVariables.set('memberId', pm.response.json().user._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"member@taskboard.dev\",\n  \"password\": \"Member1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Stores a second token as `memberToken`, used by the **Permission checks** folder. It leaves `token` alone on purpose, so the admin session the rest of the collection depends on survives."
+          }
+        },
+        {
+          "name": "Login with a wrong password (expect 401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401, and the wording does not say which half was wrong', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().message).to.eql('Email or password is incorrect');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@taskboard.dev\",\n  \"password\": \"not-the-password\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "An unknown email gives this exact same answer, so the endpoint cannot be used to find out who has an account."
+          }
+        },
+        {
+          "name": "Current user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Who the token belongs to. The user is loaded from the database rather than read out of the token, so a deleted account gets a 401 even while its token is still valid."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "List users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 with a list', () => pm.response.to.have.status(200));",
+                  "",
+                  "// Only a fallback — Login as member is what normally sets this.",
+                  "if (!pm.collectionVariables.get('memberId')) {",
+                  "  const other = pm.response.json().users.find((user) => user._id !== pm.collectionVariables.get('userId'));",
+                  "  if (other) pm.collectionVariables.set('memberId', other._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            },
+            "description": "Anyone signed in. Feeds the \"add a member\" and \"assign to\" pickers, so it returns name, email and role only."
+          }
+        },
+        {
+          "name": "Change a role (admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"member\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{memberId}}/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{memberId}}", "role"]
+            },
+            "description": "Admins only — a member gets 403 (see **Permission checks**). Registration cannot create an admin, so this is how the second one is made: send `\"role\": \"admin\"`.\n\nIt is set to `member` here so that running the collection top to bottom does not promote the account the permission checks rely on. Run **List users** first to fill in `memberId`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "List projects",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects"]
+            },
+            "description": "Projects you own or belong to. An admin gets all of them."
+          }
+        },
+        {
+          "name": "Create project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201, and the creator is already a member', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const project = pm.response.json().project;",
+                  "  pm.expect(project.members.map((m) => m._id)).to.include(project.owner._id);",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('projectId', pm.response.json().project._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mobile App Launch\",\n  \"description\": \"Ship the iOS and Android builds.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects"]
+            },
+            "description": "You become the owner and the first member. Stores `projectId` for the requests below."
+          }
+        },
+        {
+          "name": "Get project",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}"]
+            },
+            "description": "Members, the owner, or an admin. Anybody else gets 403."
+          }
+        },
+        {
+          "name": "Update project",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mobile App Launch (Q4)\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}"]
+            },
+            "description": "Owner or admin only — a plain member gets 403. Send at least one field, or it is a 422."
+          }
+        },
+        {
+          "name": "Add member",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{memberId}}\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "members"]
+            },
+            "description": "Owner or admin. Adding the same person twice is a 409; an id that belongs to nobody is a 404."
+          }
+        },
+        {
+          "name": "Try to remove the owner (expect 400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the owner cannot be removed from their own project', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/members/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "members", "{{userId}}"]
+            },
+            "description": "A project without its owner would have nobody who can manage it, so this is refused."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "List tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/tasks?sort=-createdAt&page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "tasks"],
+              "query": [
+                { "key": "sort", "value": "-createdAt", "description": "createdAt | dueDate | title | priority, with - for descending" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20", "description": "1-100" },
+                { "key": "status", "value": "todo", "description": "todo | in_progress | done", "disabled": true },
+                { "key": "priority", "value": "high", "description": "low | medium | high", "disabled": true },
+                { "key": "assignee", "value": "unassigned", "description": "A user id, or the word unassigned", "disabled": true },
+                { "key": "search", "value": "mobile", "description": "Case-insensitive match on the title", "disabled": true }
+              ]
+            },
+            "description": "Any project member. Filters combine, and the response carries `meta` with the paging numbers. Tick the disabled query params to try the filters.\n\nSorting by `priority` uses a stored numeric weight, so it runs low → medium → high rather than alphabetically."
+          }
+        },
+        {
+          "name": "Create task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 with the defaults filled in', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const task = pm.response.json().task;",
+                  "  pm.expect(task.status).to.eql('todo');",
+                  "  pm.expect(task.priority).to.eql('high');",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('taskId', pm.response.json().task._id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Fix the mobile navigation\",\n  \"description\": \"The menu stays open after tapping a link.\",\n  \"priority\": \"high\",\n  \"dueDate\": \"2026-08-15T00:00:00.000Z\",\n  \"assignee\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/tasks",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "tasks"]
+            },
+            "description": "Any project member. `status` defaults to `todo` and `priority` to `medium`. An `assignee` who is not a member of the project is a 422. Stores `taskId`."
+          }
+        },
+        {
+          "name": "Get task",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/tasks/{{taskId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "tasks", "{{taskId}}"]
+            },
+            "description": "The lookup is scoped to the project, so a real task id asked for through the wrong project answers 404 instead of leaking the task."
+          }
+        },
+        {
+          "name": "Move task to In Progress",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"in_progress\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/tasks/{{taskId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "tasks", "{{taskId}}"]
+            },
+            "description": "Any project member can edit any task in the project — moving somebody else's card is the point of a shared board."
+          }
+        },
+        {
+          "name": "Assign task",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"assignee\": \"{{memberId}}\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/tasks/{{taskId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "tasks", "{{taskId}}"]
+            },
+            "description": "The assignee has to be a member of the project first — run **Projects → Add member** before this. Send `\"assignee\": null` to clear it."
+          }
+        },
+        {
+          "name": "Delete task",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/tasks/{{taskId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "tasks", "{{taskId}}"]
+            },
+            "description": "Narrower than editing: the task's creator, the project owner, or an admin. Any other member gets 403."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Permission checks (as a member)",
+      "description": "The same endpoints, called with `memberToken` instead. Run **Auth → Login as member** first. These are the rules the task sheet asks for, shown rather than described.",
+      "item": [
+        {
+          "name": "Member renames a project they do not own (expect 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 — only the owner or an admin may rename a project', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{memberToken}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Renamed by somebody who should not be able to\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}"]
+            },
+            "description": "A member can work on the tasks inside a project but cannot rename or delete the project itself."
+          }
+        },
+        {
+          "name": "Member changes somebody's role (expect 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 — role changes are for admins', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{memberToken}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"admin\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}", "role"]
+            },
+            "description": "No self-promotion: the guard is on the route, before the controller ever runs."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cleanup (run last)",
+      "description": "Destructive, and kept out of the folders above so that running the whole collection top to bottom works.",
+      "item": [
+        {
+          "name": "Remove member",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/members/{{memberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "members", "{{memberId}}"]
+            },
+            "description": "Owner or admin. Anything the person was assigned in this project becomes unassigned."
+          }
+        },
+        {
+          "name": "Delete project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204, and the tasks go with it', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}"]
+            },
+            "description": "Owner or admin. The project's tasks are deleted with it."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:4000/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "4000",
+              "path": ["health"]
+            },
+            "description": "Outside /api and public. It never touches the database, so it keeps answering even if Mongo goes away — which is how you tell \"the API is down\" from \"Mongo is down\"."
+          }
+        }
+      ]
+    }
+  ]
+}

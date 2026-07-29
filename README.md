@@ -129,10 +129,34 @@ What the tests cover:
 
 ## API documentation
 
-With the API running, open <http://localhost:4000/api/docs>. The raw OpenAPI 3
-document is at `/api/docs.json` if you want to import it into Postman or Insomnia.
+Two ways in, depending on whether you want to read the API or poke at it.
 
-Every endpoint except register and login needs a bearer token:
+**Swagger UI** — with the API running, open <http://localhost:4000/api/docs>. It is
+generated from annotations on the routes, so it cannot drift from the code. The raw
+OpenAPI 3 document is at `/api/docs.json`.
+
+**Postman collection** — [`docs/task-board.postman_collection.json`](docs/task-board.postman_collection.json).
+Import it (Postman → Import → the file), then:
+
+1. Run **Auth → Login as admin**. A test script stores the token on the collection,
+   so every other request is authorised from then on.
+2. Run **Projects → Create project** and **Tasks → Create task**. They store
+   `projectId` and `taskId` the same way, so nothing needs ids pasted into it.
+
+24 requests across seven folders, covering every endpoint. It runs top to bottom
+as-is — the destructive requests are kept in a *Cleanup (run last)* folder, and
+signing in as a member stores a second token rather than replacing the admin one.
+Alongside the happy path it includes the refusals, because those are the
+interesting part:
+
+| Request | Proves |
+| --- | --- |
+| Login with a wrong password | `401`, worded identically to an unknown email |
+| Try to remove the owner | `400` — a project cannot be left unmanageable |
+| Member renames a project they do not own | `403 Only the project owner or an admin can do that` |
+| Member changes somebody's role | `403` — the guard runs before the controller |
+
+**Auth** — every endpoint except register and login needs a bearer token:
 
 ```
 Authorization: Bearer <token from /api/auth/login>
@@ -180,6 +204,7 @@ The response carries the paging numbers with the rows:
 ```
 task-managment/
 ├─ docker-compose.yml          MongoDB for local development
+├─ docs/                       Postman collection
 ├─ backend/
 │  ├─ src/
 │  │  ├─ server.js             boots the http listener
