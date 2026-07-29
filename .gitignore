@@ -15,9 +15,9 @@ coverage/
 *.log
 npm-debug.log*
 
-# editors / os
+# editors / local tooling
 .vscode/
 .idea/
-.claude/
+.devtools/
 .DS_Store
 Thumbs.db
