@@ -8,9 +8,10 @@ import MembersPanel from '../components/MembersPanel';
 import TaskCard from '../components/TaskCard';
 import TaskFilters from '../components/TaskFilters';
 import TaskFormModal from '../components/TaskFormModal';
-import { Empty, ErrorMessage, Loading } from '../components/states';
+import { Empty, ErrorMessage, Loading, SuccessMessage } from '../components/states';
 import { useAuth } from '../context/AuthContext';
-import { STATUSES } from '../labels';
+import { useFlash } from '../hooks/useFlash';
+import { STATUSES, statusLabel } from '../labels';
 
 const NO_FILTERS = { search: '', priority: '', assignee: '', sort: '-createdAt' };
 
@@ -33,6 +34,7 @@ function ProjectBoardPage() {
   const [projectFailure, setProjectFailure] = useState('');
   const [taskFailure, setTaskFailure] = useState('');
   const [editing, setEditing] = useState(null); // a task, or 'new', or null
+  const { message: success, flash } = useFlash();
 
   const loadProject = useCallback(async () => {
     setLoadingProject(true);
@@ -109,13 +111,17 @@ function ProjectBoardPage() {
   }, [project, loadTasks]);
 
   const saveTask = async (values) => {
+    const isNew = editing === 'new';
+
     try {
-      if (editing === 'new') {
+      if (isNew) {
         await tasksApi.createTask(projectId, values);
       } else {
         await tasksApi.updateTask(projectId, editing._id, values);
       }
 
+      // Confirm on the api's word, not on the board having finished reloading.
+      flash(isNew ? `"${values.title}" added` : `"${values.title}" saved`);
       await loadTasks();
     } catch (error) {
       // Back to the modal, which shows it next to the form.
@@ -130,6 +136,7 @@ function ProjectBoardPage() {
       const updated = await tasksApi.updateTask(projectId, task._id, { status });
       // Swap the one card instead of reloading the whole board.
       setTasks((current) => current.map((item) => (item._id === task._id ? updated : item)));
+      flash(`"${task.title}" moved to ${statusLabel(status)}`);
     } catch (error) {
       setTaskFailure(readErrorMessage(error));
     }
@@ -144,14 +151,17 @@ function ProjectBoardPage() {
 
     try {
       await tasksApi.deleteTask(projectId, task._id);
+      flash(`"${task.title}" deleted`);
       await loadTasks();
     } catch (error) {
       setTaskFailure(readErrorMessage(error));
     }
   };
 
-  const changeMembers = async (action) => {
+  // Errors here are reported by the members panel itself, so let them through.
+  const changeMembers = async (action, confirmation) => {
     setProject(await action());
+    flash(confirmation);
     // Removing someone unassigns their tasks, so the board has to catch up.
     await loadTasks();
   };
@@ -198,6 +208,8 @@ function ProjectBoardPage() {
         onChange={setFilters}
         onReset={() => setFilters(NO_FILTERS)}
       />
+
+      {success && <SuccessMessage>{success}</SuccessMessage>}
 
       {taskFailure && <ErrorMessage onRetry={loadTasks}>{taskFailure}</ErrorMessage>}
 
@@ -248,8 +260,15 @@ function ProjectBoardPage() {
       <MembersPanel
         project={project}
         canManage={canManageProject}
-        onAdd={(userId) => changeMembers(() => projectsApi.addMember(projectId, userId))}
-        onRemove={(userId) => changeMembers(() => projectsApi.removeMember(projectId, userId))}
+        onAdd={(userId) =>
+          changeMembers(() => projectsApi.addMember(projectId, userId), 'Member added')
+        }
+        onRemove={(userId) =>
+          changeMembers(
+            () => projectsApi.removeMember(projectId, userId),
+            'Member removed, and their tasks are unassigned'
+          )
+        }
       />
 
       {editing && (

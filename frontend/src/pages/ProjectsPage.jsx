@@ -4,8 +4,9 @@ import { Link } from 'react-router-dom';
 import { readErrorMessage } from '../api/client';
 import * as projectsApi from '../api/projects';
 import ProjectFormModal from '../components/ProjectFormModal';
-import { Empty, ErrorMessage, Loading } from '../components/states';
+import { Empty, ErrorMessage, Loading, SuccessMessage } from '../components/states';
 import { useAuth } from '../context/AuthContext';
+import { useFlash } from '../hooks/useFlash';
 
 function ProjectsPage() {
   const { user, isAdmin } = useAuth();
@@ -14,6 +15,7 @@ function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState('');
   const [editing, setEditing] = useState(null); // a project, or 'new', or null
+  const { message: success, flash } = useFlash();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -35,13 +37,18 @@ function ProjectsPage() {
   // The modal reports failures through its own banner, so hand the message back
   // rather than swallowing it here.
   const save = async (values) => {
+    const isNew = editing === 'new';
+
     try {
-      if (editing === 'new') {
+      if (isNew) {
         await projectsApi.createProject(values);
       } else {
         await projectsApi.updateProject(editing._id, values);
       }
 
+      // Confirm as soon as the api agrees; refreshing the list is a separate job
+      // and waiting for it just makes the app feel slow.
+      flash(isNew ? `"${values.name}" created` : `"${values.name}" saved`);
       await load();
     } catch (error) {
       throw readErrorMessage(error);
@@ -59,6 +66,7 @@ function ProjectsPage() {
 
     try {
       await projectsApi.deleteProject(project._id);
+      flash(`"${project.name}" deleted`);
       await load();
     } catch (error) {
       setFailure(readErrorMessage(error));
@@ -81,6 +89,8 @@ function ProjectsPage() {
           New project
         </button>
       </header>
+
+      {success && <SuccessMessage>{success}</SuccessMessage>}
 
       {loading && <Loading label="Loading your projects…" />}
 
