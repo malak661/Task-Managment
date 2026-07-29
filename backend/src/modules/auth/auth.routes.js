@@ -37,6 +37,7 @@ const router = Router();
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
+ *             example: { message: That email is already registered }
  *       422: { $ref: '#/components/responses/ValidationFailed' }
  */
 router.post('/register', validate(authValidation.register), authController.register);
@@ -65,7 +66,12 @@ router.post('/register', validate(authValidation.register), authController.regis
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Session' }
- *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       401:
+ *         description: Wrong password, or no account with that email
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *             example: { message: Email or password is incorrect }
  *       422: { $ref: '#/components/responses/ValidationFailed' }
  */
 router.post('/login', validate(authValidation.login), authController.login);
