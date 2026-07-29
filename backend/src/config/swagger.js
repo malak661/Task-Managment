@@ -89,7 +89,7 @@ const definition = {
       Error: {
         type: 'object',
         properties: {
-          message: { type: 'string', example: 'Project not found' },
+          message: { type: 'string', example: 'Something went wrong' },
           details: {
             type: 'array',
             items: { type: 'string' },
@@ -98,22 +98,47 @@ const definition = {
         },
       },
     },
+    // Each of these carries its own example. Sharing one schema example across all
+    // four made the docs claim a 401 answers "Project not found".
     responses: {
       Unauthorized: {
         description: 'Missing, malformed or expired token',
-        content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/Error' },
+            example: { message: 'You need to sign in first' },
+          },
+        },
       },
       Forbidden: {
         description: 'Signed in, but not allowed to touch this',
-        content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/Error' },
+            example: { message: 'Your account is not allowed to do that' },
+          },
+        },
       },
       NotFound: {
         description: 'No such record',
-        content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/Error' },
+            example: { message: 'Project not found' },
+          },
+        },
       },
       ValidationFailed: {
         description: 'The request body or query did not pass validation',
-        content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+        content: {
+          'application/json': {
+            schema: { $ref: '#/components/schemas/Error' },
+            example: {
+              message: 'Validation failed',
+              details: ['"title" length must be at least 2 characters long'],
+            },
+          },
+        },
       },
     },
   },

@@ -179,6 +179,7 @@ router
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
+ *             example: { message: That user is already a member of this project }
  */
 router.post(
   '/:id/members',
@@ -219,6 +220,7 @@ router.post(
  *         content:
  *           application/json:
  *             schema: { $ref: '#/components/schemas/Error' }
+ *             example: { message: The owner cannot be removed from their own project }
  *       401: { $ref: '#/components/responses/Unauthorized' }
  *       403: { $ref: '#/components/responses/Forbidden' }
  *       404: { $ref: '#/components/responses/NotFound' }
